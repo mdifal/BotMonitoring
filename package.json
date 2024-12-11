@@ -1,0 +1,24 @@
+{
+  "name": "botmonitoring",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "botmonitoring": "file:",
+    "crypto": "^1.0.1",
+    "dotenv": "^16.4.7",
+    "fs": "^0.0.1-security",
+    "http-proxy-agent": "^7.0.2",
+    "node-cron": "^3.0.3",
+    "node-telegram-bot-api": "^0.66.0",
+    "nodemon": "^3.1.7",
+    "path": "^0.12.7",
+    "pg": "^8.13.1",
+    "puppeteer": "^23.9.0"
+  }
+}

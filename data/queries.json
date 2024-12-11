@@ -1,0 +1,17 @@
+{
+  "abs": {
+    "sql": "SELECT 4*4 AS KAli",
+    "connection": "localhost",
+    "cronTimes": []
+  },
+  "coba": {
+    "sql": "SELECT 2+2 AS TAMBAH, 3-1 AS KURANG, 4*5 AS KALI, 20/4 AS BAGI, 10/2 AS BAGI2",
+    "connection": "localhost",
+    "cronTimes": []
+  },
+  "check_oss": {
+    "sql": "select 'oss' as source, \"date\", count(distinct file_name) as count_filename, count(*) as total, sum(file_size)/1024/1024 as file_size, max(ingest_at) as ingest_at\n        from interconnection_source.oss_ran_source_sftp orss2 \n        where ingest_at >= date(now()) - 10 and date >= date(now()) - 10\n        group by 2\n        order by 2 desc;",
+    "connection": "10.54.18.184_data_quality",
+    "cronTimes": []
+  }
+}
