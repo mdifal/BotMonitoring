@@ -70,6 +70,19 @@ const executeQuery = async (bot, chatId, queryName, asScreenshot = false) => {
     await client.connect();
     const result = await client.query(query.sql);
 
+    // Format hasil query: konversi semua tanggal menjadi string 'YYYY-MM-DD'
+    const formattedRows = result.rows.map((row) => {
+      const formattedRow = {};
+      for (const col in row) {
+        if (row[col] instanceof Date) {
+          formattedRow[col] = row[col].toISOString().split("T")[0]; // Format 'YYYY-MM-DD'
+        } else {
+          formattedRow[col] = row[col];
+        }
+      }
+      return formattedRow;
+    });
+
     if (asScreenshot) {
       const browser = await puppeteer.launch();
       const page = await browser.newPage();
@@ -84,21 +97,21 @@ const executeQuery = async (bot, chatId, queryName, asScreenshot = false) => {
           <style>
             body {
               font-family: Arial, sans-serif;
-              margin: 20px; /* Tambahkan margin di semua sisi */
+              margin: 20px;
               padding: 0;
             }
             table {
               border-collapse: collapse;
-              width: auto; /* Sesuai dengan ukuran konten */
-              table-layout: auto; /* Kolom akan menyesuaikan isi */
-              margin: 0 auto; /* Agar tabel center di halaman */
+              width: auto;
+              table-layout: auto;
+              margin: 0 auto;
             }
             th, td {
               border: 1px solid #ddd;
-              padding: 4px 8px; /* Padding minimal dengan margin kanan/kiri kecil */
-              text-align: center; /* Isi sel di tengah */
-              white-space: nowrap; /* Hindari pemotongan teks */
-              font-size: 12px; /* Ukuran font lebih kecil */
+              padding: 4px 8px;
+              text-align: center;
+              white-space: nowrap;
+              font-size: 12px;
             }
             th {
               background-color: #f2f2f2;
@@ -118,7 +131,7 @@ const executeQuery = async (bot, chatId, queryName, asScreenshot = false) => {
               <tr>${columns.map((col) => `<th>${col}</th>`).join("")}</tr>
             </thead>
             <tbody>
-              ${result.rows
+              ${formattedRows
                 .map(
                   (row) =>
                     `<tr>${columns
@@ -131,43 +144,37 @@ const executeQuery = async (bot, chatId, queryName, asScreenshot = false) => {
         </body>
       </html>
       `;
-      
 
       // Set konten halaman dengan tabel
-       // Set konten halaman dengan tabel
-       await page.setContent(tableHTML);
+      await page.setContent(tableHTML);
 
-       // Atur ukuran default minimum (viewport)
-       let minWidth = 600;
-       let minHeight = 400;
- 
-       await page.setViewport({
-         width: minWidth,
-         height: minHeight,
-         deviceScaleFactor: 1, // Tidak ada zoom out
-       });
- 
-       // Hitung tinggi total tabel secara dinamis
-       const bodyHeight = await page.evaluate(() => document.body.scrollHeight);
-       const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
- 
-       // Perbarui viewport berdasarkan ukuran konten tabel
-       await page.setViewport({
-         width: Math.max(minWidth, bodyWidth), // Lebar minimal atau sesuai konten
-         height: Math.max(minHeight, bodyHeight), // Tinggi minimal atau sesuai konten
-         deviceScaleFactor: 1,
-       });
- 
-       const screenshotPath = `screenshot-${Date.now()}.png`;
- 
-       // Ambil screenshot dari seluruh halaman
-       await page.screenshot({ path: screenshotPath, fullPage: true });
- 
-       await browser.close();
-       await bot.sendPhoto(chatId, screenshotPath);
+      let minWidth = 600;
+      let minHeight = 400;
+
+      await page.setViewport({
+        width: minWidth,
+        height: minHeight,
+        deviceScaleFactor: 1,
+      });
+
+      const bodyHeight = await page.evaluate(() => document.body.scrollHeight);
+      const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
+
+      await page.setViewport({
+        width: Math.max(minWidth, bodyWidth),
+        height: Math.max(minHeight, bodyHeight),
+        deviceScaleFactor: 1,
+      });
+
+      const screenshotPath = `screenshot-${Date.now()}.png`;
+
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+
+      await browser.close();
+      await bot.sendPhoto(chatId, screenshotPath);
     } else {
       // Jika tidak dalam mode screenshot, kirim data sebagai teks JSON
-      bot.sendMessage(chatId, JSON.stringify(result.rows, null, 2));
+      bot.sendMessage(chatId, JSON.stringify(formattedRows, null, 2));
     }
   } catch (error) {
     bot.sendMessage(chatId, `Error saat menjalankan query "${queryName}": ${error.message}`);
