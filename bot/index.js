@@ -5,16 +5,18 @@ const { handleConnectionActions, handleConnectionMenu } = require("./commands/co
 const { executeQuery } = require("./utils");
 const { readJSON } = require("./utils"); // Untuk membaca file JSON
 const { HttpsProxyAgent } = require('https-proxy-agent'); // Gunakan destructuring untuk versi terbaru
+const path = require("path");
+const cron = require("node-cron");   
+const fs = require("fs");
 
-// URL proxy diambil dari .env
-const proxyUrl = process.env.HTTP_PROXY;
-if (!proxyUrl) {
-    console.error("HTTP_PROXY tidak ditemukan di file .env. Pastikan file .env telah diatur.");
-    process.exit(1);
-}
+// const proxyUrl = process.env.HTTP_PROXY;
+// if (!proxyUrl) {
+//     console.error("HTTP_PROXY tidak ditemukan di file .env. Pastikan file .env telah diatur.");
+//     process.exit(1);
+// }
 
-// Buat agen proxy
-const agent = new HttpsProxyAgent(proxyUrl);
+
+//const agent = new HttpsProxyAgent(proxyUrl);
 
 // Token bot Telegram
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -23,14 +25,68 @@ if (!token) {
     process.exit(1);
 }
 
-// Inisialisasi bot dengan proxy
-const bot = new TelegramBot(token, {
-    polling: true,
-    request: { agent: agent }
+
+// const bot = new TelegramBot(token, {
+//     polling: true,
+//     request: { agent: agent }
+// });
+// Inisialisasi bot tanpa proxy untuk local
+const bot = new TelegramBot(token, { polling: true });
+
+// File untuk menyimpan ID grup
+const groupsFile = path.resolve(__dirname, "../data/groups.json");;
+
+// Fungsi untuk membaca dan menyimpan grup
+
+
+const addGroupToJSON = (groupId, groupName) => {
+
+    
+
+    let groups = {};
+
+    try {
+        if (fs.existsSync(groupsFile)) {
+            console.log("File groups.json ditemukan.");
+            const fileContent = fs.readFileSync(groupsFile, "utf8");
+            groups = JSON.parse(fileContent || "{}");
+        } else {
+            console.log("File groups.json tidak ditemukan. Membuat file baru...");
+            fs.writeFileSync(groupsFile, JSON.stringify({}, null, 2), "utf8");
+        }
+    } catch (error) {
+        console.error("Error saat membaca file groups.json:", error.message);
+        groups = {};
+    }
+
+    // Tambahkan grup jika belum ada
+    if (!groups[groupId]) {
+        groups[groupId] = { name: groupName };
+
+        try {
+            fs.writeFileSync(groupsFile, JSON.stringify(groups, null, 2), "utf8");
+            console.log(`Grup ${groupName} (${groupId}) ditambahkan ke daftar.`);
+        } catch (writeError) {
+            console.error("Error saat menyimpan file groups.json:", writeError.message);
+        }
+    } else {
+        console.log(`Grup ${groupName} (${groupId}) sudah ada dalam daftar.`);
+    }
+};
+
+bot.on("new_chat_members", (msg) => {
+    const chatId = msg.chat.id;
+    const groupName = msg.chat.title;
+
+    // Tambahkan grup ke JSON
+    addGroupToJSON(chatId, groupName);
+
+    // Kirim pesan perkenalan
+    bot.sendMessage(chatId, "Halo semuanya! Saya adalah bot. Senang bergabung di grup ini.");
 });
 
 const queriesFile = require("path").resolve(__dirname, "../data/queries.json");
-
+const queries = readJSON(queriesFile);
 // Fungsi untuk menampilkan menu utama
 const showMainMenu = (bot, chatId) => {
     const options = {
@@ -88,7 +144,7 @@ bot.on("callback_query", (query) => {
         data.startsWith("update_query_") ||
         data.startsWith("delete_query_") ||
         data.startsWith("connect_query_") ||
-        data.startsWith("select_connection_")
+        data.startsWith("select_connection_") ||data.startsWith("add_cron_")
     ) {
         handleQueryMenu(bot, chatId, data);
     } else if (data.startsWith("menu_connection")) {
@@ -97,5 +153,35 @@ bot.on("callback_query", (query) => {
         handleConnectionActions(bot, chatId,messageId, data);
     }
 });
+
+// Fungsi untuk menjalankan query dan mengirim hasilnya ke grup
+const runScheduledQuery = async (queryName, query) => {
+    const groups = readJSON(groupsFile);
+    for (const groupId of Object.keys(groups)) {
+        const result = await executeQuery(bot, groupId, queryName, false); // Eksekusi query
+        bot.sendMessage(groupId, `**[${queryName}]**\nHasil:\n${result}`, { parse_mode: "Markdown" });
+    }
+};
+
+// Jadwalkan cron job untuk setiap query
+Object.entries(queries).forEach(([queryName, queryDetails]) => {
+    const { sql, cronTimes } = queryDetails;
+    
+    // Pastikan cronTimes adalah array, jika tidak, ubah menjadi array
+    const cronTimesArray = Array.isArray(cronTimes) ? cronTimes : [cronTimes];
+
+    cronTimesArray.forEach(cronTime => {
+        if (cronTime) {
+            cron.schedule(cronTime, () => {
+                console.log(`Menjalankan query "${queryName}" sesuai jadwal (${cronTime}).`);
+                runScheduledQuery(queryName, sql);
+            });
+            console.log(`Query "${queryName}" dijadwalkan pada "${cronTime}".`);
+        }
+    });
+});
+
+
+
 
 module.exports = bot;

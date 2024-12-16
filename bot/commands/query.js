@@ -88,8 +88,8 @@ const listQueries = (bot, chatId) => {
   });
 };
 const showQueryMenu = (bot, chatId, queryName) => {
-  console.log(`showQueryMenu triggered for query: ${queryName}`); // Debugging step 1: Check if this is triggered
-  
+  console.log(`showQueryMenu triggered for query: ${queryName}`);
+
   const queries = readJSON(queriesFile);
 
   if (!queries[queryName]) {
@@ -97,11 +97,10 @@ const showQueryMenu = (bot, chatId, queryName) => {
   }
 
   const { sql, connection, cronTimes } = queries[queryName];
-  const infoMessage = `Nama Query: ${queryName}\nQuery: ${sql}\nConnection: ${connection || "Belum diatur"}\nCron: ${
-    cronTimes.length > 0 ? cronTimes.join(", ") : "Tidak ada"
-  }`;
+  const infoMessage = `Nama Query: ${queryName}\nQuery: ${sql}\nConnection: ${
+    connection || "Belum diatur"
+  }\nCron: ${cronTimes.length > 0 ? cronTimes.join(", ") : "Tidak ada"}`;
 
-  console.log("Sending info message..."); // Debugging step 2: Confirm sending of info message
   bot.sendMessage(chatId, infoMessage).then(() => {
     const options = {
       reply_markup: {
@@ -109,16 +108,13 @@ const showQueryMenu = (bot, chatId, queryName) => {
           [{ text: "Update Query", callback_data: `update_query_${queryName}` }],
           [{ text: "Delete Query", callback_data: `delete_query_${queryName}` }],
           [{ text: "Sambungkan Koneksi", callback_data: `connect_query_${queryName}` }],
+          [{ text: "Add Cron", callback_data: `add_cron_${queryName}` }],
           [{ text: "<<Back>>", callback_data: "list_query" }],
         ],
       },
     };
 
-    console.log("Sending options..."); // Debugging step 3: Confirm sending of options
     bot.sendMessage(chatId, `Menu untuk Query "${queryName}":`, options);
-    console.log(`Sent options for query: ${queryName}`); // Debugging step 4: Confirm completion of sending options
-  }).catch(err => {
-    console.error("Error sending info message:", err); // Debugging step 5: Catch any errors
   });
 };
 
@@ -212,8 +208,67 @@ const deleteQuery = (bot, chatId, queryName) => {
   listQueries(bot, chatId);
 };
 
+const addCronToQuery = (bot, chatId, queryName) => {
+  bot.sendMessage(
+    chatId,
+    `Masukkan jadwal cron untuk query "${queryName}" (format *HH:mm*, pisahkan dengan koma, contoh: *08:50,10:15,12:16*):`,
+    {
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: [[{ text: "<<Cancel>>", callback_data: `query_menu_${queryName}` }]],
+      },
+    }
+  ).then(() => {
+    const cronListener = (msg) => {
+      const input = msg.text.trim();
+      const cronTimesInput = input.split(",").map((time) => time.trim());
+      const cronTimes = [];
+
+      for (const time of cronTimesInput) {
+        if (/^\d{2}:\d{2}$/.test(time)) {
+          // Jika format sesuai HH:mm, konversi ke cron
+          const [hour, minute] = time.split(":");
+          cronTimes.push(`0 ${minute} ${hour} * *`);
+        } else {
+          bot.sendMessage(chatId, `Format tidak valid: "${time}". Lewati waktu ini.`);
+        }
+      }
+
+      if (cronTimes.length === 0) {
+        return bot.sendMessage(chatId, "Tidak ada jadwal yang berhasil ditambahkan.");
+      }
+
+      const queries = readJSON(queriesFile);
+      if (!queries[queryName]) {
+        return bot.sendMessage(chatId, "Query tidak ditemukan.");
+      }
+
+      queries[queryName].cronTimes = queries[queryName].cronTimes || [];
+      queries[queryName].cronTimes.push(...cronTimes);
+
+      writeJSON(queriesFile, queries);
+
+      bot.sendMessage(
+        chatId,
+        `Jadwal cron berikut berhasil ditambahkan:\n${cronTimesInput.join("\n")}`
+      );
+      showQueryMenu(bot, chatId, queryName);
+    };
+
+    bot.once("message", cronListener);
+
+    bot.once("callback_query", (query) => {
+      if (query.data === `query_menu_${queryName}`) {
+        bot.removeListener("message", cronListener);
+        showQueryMenu(bot, chatId, queryName);
+      }
+    });
+  });
+};
+
+
 const handleQueryMenu = (bot, chatId, data) => {
-  console.log("handleQueryMenu triggered with data:", data); // Debugging
+  console.log("handleQueryMenu triggered with data:", data);
 
   if (data === "menu_query") {
     showMainMenu(bot, chatId);
@@ -232,13 +287,15 @@ const handleQueryMenu = (bot, chatId, data) => {
     deleteQuery(bot, chatId, queryName);
   } else if (data.startsWith("connect_query_")) {
     const queryName = data.replace("connect_query_", "");
-    connectQuery(bot, chatId, queryName);  // Ensure this callback is properly triggered
+    connectQuery(bot, chatId, queryName);
+  } else if (data.startsWith("add_cron_")) {
+    const queryName = data.replace("add_cron_", "");
+    addCronToQuery(bot, chatId, queryName);
   } else if (data.startsWith("select_connection_")) {
     const { queryName, connectionName } = extractQueryAndConnection(data);
     setConnectionForQuery(bot, chatId, queryName, connectionName);
   }
 };
-
 module.exports = {
   handleQueryMenu,
 };

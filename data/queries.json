@@ -1,17 +1,30 @@
 {
   "abs": {
-    "sql": "SELECT 4*4 AS KAli",
+    "sql": "SELECT 4*5 AS KAli",
     "connection": "localhost",
-    "cronTimes": []
+    "cronTimes": [
+      "8 0 * * *",
+      "9 0 * * *",
+      "19 0 * * *"
+    ]
   },
   "coba": {
     "sql": "SELECT 2+2 AS TAMBAH, 3-1 AS KURANG, 4*5 AS KALI, 20/4 AS BAGI, 10/2 AS BAGI2",
     "connection": "localhost",
-    "cronTimes": []
+    "cronTimes": [
+      "20 12 * * *",
+      "18 10 * * *",
+      "12 23 * * *"
+    ]
   },
   "check_oss": {
     "sql": "select 'oss' as source, \"date\", count(distinct file_name) as count_filename, count(*) as total, sum(file_size)/1024/1024 as file_size, max(ingest_at) as ingest_at\n        from interconnection_source.oss_ran_source_sftp orss2 \n        where ingest_at >= date(now()) - 10 and date >= date(now()) - 10\n        group by 2\n        order by 2 desc;",
     "connection": "10.54.18.184_data_quality",
+    "cronTimes": []
+  },
+  "test": {
+    "sql": "WITH data AS (\n    SELECT \n        i AS id,\n        'Nama ' || i AS nama,\n        i * 10 AS kolom_angka_1,\n        i * 20 AS kolom_angka_2,\n        i * 30 AS kolom_angka_3,\n        i * 40 AS kolom_angka_4,\n        i * 50 AS kolom_angka_5,\n        i * 60 AS kolom_angka_6,\n        i * 70 AS kolom_angka_7,\n        i * 80 AS kolom_angka_8,\n        i * 90 AS kolom_angka_9,\n        i * 100 AS kolom_angka_10,\n        i * i AS hasil_kali\n    FROM generate_series(1, 100) AS s(i) -- Membuat 100 baris\n)\nSELECT *\nFROM data;",
+    "connection": "localhost_postgres",
     "cronTimes": []
   }
 }

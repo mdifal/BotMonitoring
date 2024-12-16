@@ -79,82 +79,92 @@ const executeQuery = async (bot, chatId, queryName, asScreenshot = false) => {
 
       // Bangun HTML tabel
       const tableHTML = `
-        <html>
-          <head>
-            <style>
-              body {
-                font-family: Arial, sans-serif;
-                margin: 0;
-                padding: 0;
-              }
-              table {
-                border-collapse: collapse;
-                width: 100%;
-                table-layout: auto;
-              }
-              th, td {
-                border: 1px solid #ddd;
-                padding: 8px;
-                text-align: left;
-              }
-              th {
-                background-color: #f2f2f2;
-                font-weight: bold;
-              }
-              tr:nth-child(even) {
-                background-color: #f9f9f9;
-              }
-              tr:hover {
-                background-color: #ddd;
-              }
-            </style>
-          </head>
-          <body>
-            <table>
-              <thead>
-                <tr>${columns.map((col) => `<th>${col}</th>`).join("")}</tr>
-              </thead>
-              <tbody>
-                ${result.rows
-                  .map(
-                    (row) =>
-                      `<tr>${columns
-                        .map((col) => `<td>${row[col] ?? ""}</td>`)
-                        .join("")}</tr>`
-                  )
-                  .join("")}
-              </tbody>
-            </table>
-          </body>
-        </html>
+      <html>
+        <head>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 20px; /* Tambahkan margin di semua sisi */
+              padding: 0;
+            }
+            table {
+              border-collapse: collapse;
+              width: auto; /* Sesuai dengan ukuran konten */
+              table-layout: auto; /* Kolom akan menyesuaikan isi */
+              margin: 0 auto; /* Agar tabel center di halaman */
+            }
+            th, td {
+              border: 1px solid #ddd;
+              padding: 4px 8px; /* Padding minimal dengan margin kanan/kiri kecil */
+              text-align: center; /* Isi sel di tengah */
+              white-space: nowrap; /* Hindari pemotongan teks */
+              font-size: 12px; /* Ukuran font lebih kecil */
+            }
+            th {
+              background-color: #f2f2f2;
+              font-weight: bold;
+            }
+            tr:nth-child(even) {
+              background-color: #f9f9f9;
+            }
+            tr:hover {
+              background-color: #ddd;
+            }
+          </style>
+        </head>
+        <body>
+          <table>
+            <thead>
+              <tr>${columns.map((col) => `<th>${col}</th>`).join("")}</tr>
+            </thead>
+            <tbody>
+              ${result.rows
+                .map(
+                  (row) =>
+                    `<tr>${columns
+                      .map((col) => `<td>${row[col] ?? ""}</td>`)
+                      .join("")}</tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </body>
+      </html>
       `;
+      
 
       // Set konten halaman dengan tabel
-      await page.setContent(tableHTML);
+       // Set konten halaman dengan tabel
+       await page.setContent(tableHTML);
 
-      // Hitung ukuran screenshot berdasarkan jumlah baris dan kolom
-      const rowCount = result.rows.length + 1; // Baris + header
-      const colCount = columns.length;
-      const rowHeight = 40; // Tinggi rata-rata setiap baris
-      const colWidth = 150; // Lebar rata-rata setiap kolom
-
-      const minWidth = 600; // Lebar minimum
-      const minHeight = 400; // Tinggi minimum
-      const maxWidth = 1920; // Lebar maksimum
-      const maxHeight = 1080; // Tinggi maksimum
-
-      const width = Math.max(minWidth, Math.min(colCount * colWidth, maxWidth));
-      const height = Math.max(minHeight, Math.min(rowCount * rowHeight, maxHeight));
-
-      // Terapkan viewport dengan ukuran yang dihitung
-      await page.setViewport({ width, height });
-
-      const screenshotPath = `screenshot-${Date.now()}.png`;
-
-      // Ambil screenshot dan kirim ke pengguna
-      await page.screenshot({ path: screenshotPath });
-      await browser.close();
-      await bot.sendPhoto(chatId, screenshotPath);
+       // Atur ukuran default minimum (viewport)
+       let minWidth = 600;
+       let minHeight = 400;
+ 
+       await page.setViewport({
+         width: minWidth,
+         height: minHeight,
+         deviceScaleFactor: 1, // Tidak ada zoom out
+       });
+ 
+       // Hitung tinggi total tabel secara dinamis
+       const bodyHeight = await page.evaluate(() => document.body.scrollHeight);
+       const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
+ 
+       // Perbarui viewport berdasarkan ukuran konten tabel
+       await page.setViewport({
+         width: Math.max(minWidth, bodyWidth), // Lebar minimal atau sesuai konten
+         height: Math.max(minHeight, bodyHeight), // Tinggi minimal atau sesuai konten
+         deviceScaleFactor: 1,
+       });
+ 
+       const screenshotPath = `screenshot-${Date.now()}.png`;
+ 
+       // Ambil screenshot dari seluruh halaman
+       await page.screenshot({ path: screenshotPath, fullPage: true });
+ 
+       await browser.close();
+       await bot.sendPhoto(chatId, screenshotPath);
     } else {
       // Jika tidak dalam mode screenshot, kirim data sebagai teks JSON
       bot.sendMessage(chatId, JSON.stringify(result.rows, null, 2));
@@ -165,6 +175,7 @@ const executeQuery = async (bot, chatId, queryName, asScreenshot = false) => {
     await client.end();
   }
 };
+
 
 
 const extractQueryAndConnection = (data) => {
@@ -181,4 +192,4 @@ const extractQueryAndConnection = (data) => {
 const readJSON = (file) => JSON.parse(fs.existsSync(file) ? fs.readFileSync(file, "utf-8") : "{}");
 const writeJSON = (file, data) => fs.writeFileSync(file, JSON.stringify(data, null, 2));
 
-module.exports = { encrypt, decrypt, readJSON, writeJSON, extractQueryAndConnection, executeQuery };
+module.exports = { encrypt, decrypt, readJSON, writeJSON, extractQueryAndConnection, executeQuery, readJSON };
