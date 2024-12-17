@@ -45,8 +45,10 @@ const decrypt = (text) => {
   
   return decrypted;
 };
-
+// Fungsi eksekusi query
 const executeQuery = async (bot, chatId, queryName, asScreenshot = false) => {
+
+
   const connections = readJSON(connectionsFile);
   const queries = readJSON(queriesFile);
 
@@ -169,9 +171,25 @@ const executeQuery = async (bot, chatId, queryName, asScreenshot = false) => {
       const screenshotPath = `screenshot-${Date.now()}.png`;
 
       await page.screenshot({ path: screenshotPath, fullPage: true });
-
+      console.log(`Screenshot disimpan di: ${screenshotPath}`);
       await browser.close();
-      await bot.sendPhoto(chatId, screenshotPath);
+
+      // Kirim gambar dengan caption
+      const caption = `Data Query "${queryName}":`;
+
+      await bot.sendPhoto(chatId, fs.createReadStream(screenshotPath), { caption });
+
+
+      
+
+      // Hapus file screenshot dari storage
+      fs.unlink(screenshotPath, (err) => {
+        if (err) {
+          console.error(`Gagal menghapus file ${screenshotPath}:`, err.message);
+        } else {
+          console.log(`File ${screenshotPath} berhasil dihapus dari storage.`);
+        }
+      });
     } else {
       // Jika tidak dalam mode screenshot, kirim data sebagai teks JSON
       bot.sendMessage(chatId, JSON.stringify(formattedRows, null, 2));
@@ -194,9 +212,18 @@ const extractQueryAndConnection = (data) => {
 
   return { queryName, connectionName };
 };
-
+// Cron job untuk query
+// File untuk menyimpan ID grup
+const groupsFile = path.resolve(__dirname, "../data/groups.json");
+const runScheduledQuery = async (bot,queryName, query) => {
+    const groups = readJSON(groupsFile);
+    for (const groupId of Object.keys(groups)) {
+        const result = await executeQuery(bot, groupId, queryName, true);
+       
+    }
+};
 
 const readJSON = (file) => JSON.parse(fs.existsSync(file) ? fs.readFileSync(file, "utf-8") : "{}");
 const writeJSON = (file, data) => fs.writeFileSync(file, JSON.stringify(data, null, 2));
 
-module.exports = { encrypt, decrypt, readJSON, writeJSON, extractQueryAndConnection, executeQuery, readJSON };
+module.exports = { encrypt, decrypt, readJSON, writeJSON, extractQueryAndConnection, executeQuery, readJSON, runScheduledQuery };

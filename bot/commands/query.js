@@ -1,7 +1,8 @@
-const { readJSON, writeJSON, extractQueryAndConnection } = require("../utils");
+const { executeQuery,readJSON, writeJSON, extractQueryAndConnection, runScheduledQuery } = require("../utils");
 
 const path = require("path");
-
+const cron = require("node-cron");
+const activeCrons = {}; // Menyimpan cron yang sedang berjalan
 const queriesFile = path.resolve(__dirname, "../../data/queries.json");
 const connectionsFile = path.resolve(__dirname, "../../data/connections.json");
 
@@ -222,36 +223,46 @@ const addCronToQuery = (bot, chatId, queryName) => {
     const cronListener = (msg) => {
       const input = msg.text.trim();
       const cronTimesInput = input.split(",").map((time) => time.trim());
-      const cronTimes = [];
+      const newCronTimes = [];
 
       for (const time of cronTimesInput) {
         if (/^\d{2}:\d{2}$/.test(time)) {
-          // Jika format sesuai HH:mm, konversi ke cron
           const [hour, minute] = time.split(":");
-          cronTimes.push(`0 ${minute} ${hour} * *`);
+          const cronFormat = `${minute} ${hour} * * *`; // Format cron
+
+          // Cek apakah jadwal sudah ada
+          const queries = readJSON(queriesFile);
+          queries[queryName] = queries[queryName] || { cronTimes: [], sql: "" };
+
+          if (queries[queryName].cronTimes.includes(cronFormat)) {
+            bot.sendMessage(
+              chatId,
+              `Jadwal "${time}" sudah pernah ditambahkan untuk query "${queryName}".`
+            );
+          } else {
+            queries[queryName].cronTimes.push(cronFormat);
+            newCronTimes.push(cronFormat);
+            writeJSON(queriesFile, queries);
+
+            // Dapatkan SQL dari query
+            const sql = queries[queryName].sql;
+
+            // Jadwalkan cron baru
+            scheduleCron(bot, queryName, cronFormat, sql);
+          }
         } else {
           bot.sendMessage(chatId, `Format tidak valid: "${time}". Lewati waktu ini.`);
         }
       }
 
-      if (cronTimes.length === 0) {
-        return bot.sendMessage(chatId, "Tidak ada jadwal yang berhasil ditambahkan.");
+      if (newCronTimes.length > 0) {
+        bot.sendMessage(
+          chatId,
+          `Jadwal cron berhasil ditambahkan:\n${newCronTimes
+            .map((cronTime) => cronTime.replace(/\*\s\*\s\*\s\*/, "").trim())
+            .join("\n")}`
+        );
       }
-
-      const queries = readJSON(queriesFile);
-      if (!queries[queryName]) {
-        return bot.sendMessage(chatId, "Query tidak ditemukan.");
-      }
-
-      queries[queryName].cronTimes = queries[queryName].cronTimes || [];
-      queries[queryName].cronTimes.push(...cronTimes);
-
-      writeJSON(queriesFile, queries);
-
-      bot.sendMessage(
-        chatId,
-        `Jadwal cron berikut berhasil ditambahkan:\n${cronTimesInput.join("\n")}`
-      );
       showQueryMenu(bot, chatId, queryName);
     };
 
@@ -265,6 +276,19 @@ const addCronToQuery = (bot, chatId, queryName) => {
     });
   });
 };
+
+// Fungsi untuk menjadwalkan cron
+const scheduleCron = (bot, queryName, cronTime,sql) => {
+  activeCrons[queryName] = activeCrons[queryName] || [];
+
+  const job = cron.schedule(cronTime, () => {
+    runScheduledQuery(bot,queryName, sql);
+    console.log(`Query "${queryName}" dieksekusi pada jadwal ${cronTime}`);
+  });
+
+  activeCrons[queryName].push(job);
+};
+
 
 
 const handleQueryMenu = (bot, chatId, data) => {

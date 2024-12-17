@@ -2,7 +2,7 @@ require('dotenv').config(); // Memuat variabel lingkungan dari file .env
 const TelegramBot = require("node-telegram-bot-api");
 const { handleQueryMenu } = require("./commands/query");
 const { handleConnectionActions, handleConnectionMenu } = require("./commands/connection");
-const { executeQuery, readJSON } = require("./utils");
+const { executeQuery, readJSON,runScheduledQuery } = require("./utils");
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const path = require("path");
 const cron = require("node-cron");
@@ -151,14 +151,7 @@ bot.on("callback_query", (query) => {
     }
 });
 
-// Cron job untuk query
-const runScheduledQuery = async (queryName, query) => {
-    const groups = readJSON(groupsFile);
-    for (const groupId of Object.keys(groups)) {
-        const result = await executeQuery(bot, groupId, queryName, false);
-        bot.sendMessage(groupId, `**[${queryName}]**\nHasil:\n${result}`, { parse_mode: "Markdown" });
-    }
-};
+
 
 const queries = readJSON(queriesFile);
 Object.entries(queries).forEach(([queryName, queryDetails]) => {
@@ -169,7 +162,7 @@ Object.entries(queries).forEach(([queryName, queryDetails]) => {
         if (cronTime) {
             cron.schedule(cronTime, () => {
                 console.log(`Menjalankan query "${queryName}" sesuai jadwal (${cronTime}).`);
-                runScheduledQuery(queryName, sql);
+                runScheduledQuery(bot,queryName, sql);
             });
             console.log(`Query "${queryName}" dijadwalkan pada "${cronTime}".`);
         }
